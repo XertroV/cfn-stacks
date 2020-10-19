@@ -10,16 +10,21 @@ Parameters:
     Type: String
     Description: "If true, a bucket will be created. If false it will not be created."
     AllowedValues: ["true", "false"]
+    Default: "true"
   pHostedZoneId:
     Type: String
+    Default: ""
   pPreviewRecordSetDomain:
     Type: String
     Description: "Must be a valid record for the specified hosted zone"
+    Default: ""
   pCertArn:
     Type: String
+    Default: ""
 
 Conditions:
   cCreateBucket: !Equals [!Ref pCreateBucket, "true"]
+  cSetUpDomain: !And [!Not [!Equals [!Ref pHostedZoneId, ""]], !Not [!Equals [!Ref pPreviewRecordSetDomain, ""]], !Not [!Equals [!Ref pCertArn, ""]]]
 
 Resources:
   rTheBucket:
@@ -44,6 +49,7 @@ Resources:
 
   rCnameForDistribution:
     Type: AWS::Route53::RecordSetGroup
+    Condition: cSetUpDomain
     Properties:
       HostedZoneId: !Ref pHostedZoneId
       RecordSets:
@@ -59,18 +65,24 @@ Resources:
       DistributionConfig:
         Enabled: true
         DefaultRootObject: 'index.html'
-        Aliases:
-          - !Ref pPreviewRecordSetDomain
+        Aliases: !If [cSetUpDomain, [!Ref pPreviewRecordSetDomain], []]
         Origins:
           - Id: !Ref pBucketName
             DomainName: !Sub ${pBucketName}.s3.amazonaws.com
             S3OriginConfig: {}
         ViewerCertificate:
-          AcmCertificateArn: !Ref pCertArn
-          SslSupportMethod: sni-only
+          AcmCertificateArn: !If [cSetUpDomain, !Ref pCertArn, !Ref AWS::NoValue]
+          CloudFrontDefaultCertificate: !If [cSetUpDomain, !Ref AWS::NoValue, "true"]
+          SslSupportMethod: !If [cSetUpDomain, "sni-only", !Ref AWS::NoValue]
           MinimumProtocolVersion: TLSv1.2_2018
         DefaultCacheBehavior:
           TargetOriginId: !Ref pBucketName
           ForwardedValues:
             QueryString: false
           ViewerProtocolPolicy: redirect-to-https
+
+Outputs:
+  oDidSetUpDomain:
+    Value: !If [cSetUpDomain, "yes", "no -- necessary data not provided"]
+  oCfDomain:
+    Value: !GetAtt Distribution.DomainName
