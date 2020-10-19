@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+    A stack to set up an S3 bucket and CFN Distribution
+
+Parameters:
+  pBucketName:
+    Type: String
+    Description: "S3 bucket name."
+  pCreateBucket:
+    Type: String
+    Description: "If true, a bucket will be created. If false it will not be created."
+    AllowedValues: ["true", "false"]
+  pHostedZoneId:
+    Type: String
+  pPreviewRecordSetDomain:
+    Type: String
+    Description: "Must be a valid record for the specified hosted zone"
+  pCertArn:
+    Type: String
+
+Conditions:
+  cCreateBucket: !Equals [!Ref pCreateBucket, "true"]
+
+Resources:
+  rTheBucket:
+    Type: AWS::S3::Bucket
+    Condition: cCreateBucket
+    Properties:
+      BucketName: !Ref pBucketName
+      AccessControl: "PublicRead"
+
+  rTheBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: cCreateBucket
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${rTheBucket}/*"
+      Bucket: !Ref rTheBucket
+
+  rCnameForDistribution:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId: !Ref pHostedZoneId
+      RecordSets:
+        - Name: !Ref pPreviewRecordSetDomain
+          Type: A
+          AliasTarget:
+            HostedZoneId: Z2FDTNDATAQYW2
+            DNSName: !GetAtt Distribution.DomainName
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: 'index.html'
+        Aliases:
+          - !Ref pPreviewRecordSetDomain
+        Origins:
+          - Id: !Ref pBucketName
+            DomainName: !Sub ${pBucketName}.s3.amazonaws.com
+            S3OriginConfig: {}
+        ViewerCertificate:
+          AcmCertificateArn: !Ref pCertArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2018
+        DefaultCacheBehavior:
+          TargetOriginId: !Ref pBucketName
+          ForwardedValues:
+            QueryString: false
+          ViewerProtocolPolicy: redirect-to-https

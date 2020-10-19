@@ -1,0 +1,14 @@
+{
+  "name": "cfn-stacks",
+  "version": "1.0.0",
+  "description": "a collection of CFN stacks that are probably useful -- why AWS doesn't make a library like this available I will never know.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Max Kaye",
+  "license": "MIT",
+  "dependencies": {
+    "cfn-deploy": "^1.2.0"
+  }
+}
